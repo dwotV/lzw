@@ -41,7 +41,7 @@ void free_dictionary(DictionaryEntry *dictionary, int dict_size) {
 int read_code(FILE *input_file) {
     static int buffer = 0, bits_in_buffer = 0;
     int code;
-    
+
     while (bits_in_buffer < 12) {
         int next_byte = fgetc(input_file);
         if (next_byte == EOF) return EOF;
