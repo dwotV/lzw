@@ -1,8 +1,8 @@
 /*
-PROYECTO LZW 
+PROYECTO LZW
 
 Gabriel Ponce Peña A01369913
-Dael 
+Dael Chavez Ferreyra A01771963
 */
 
 #include <stdio.h>
@@ -12,7 +12,7 @@ Dael
 #define MAX_DICTIONARY_SIZE 4096
 #define MAX_ENTRY_SIZE 256
 
-typedef struct { 
+typedef struct {
     int length;
     unsigned char *ent;
 } DictionaryEntry;
@@ -20,7 +20,7 @@ typedef struct {
 void startDictionary(DictionaryEntry *in_dict);
 void appendtoDictionary(DictionaryEntry *dict, unsigned char *entry, int length, int *dict_size);
 void freeDictionary(DictionaryEntry *dict, int dict_size);
-int readCode(FILE *input); 
+int readCode(FILE *input);
 void decompress(FILE *input, FILE *output);
 
 
@@ -30,8 +30,7 @@ void decompress(FILE *input, FILE *output);
  */
 int main(int argc, char *argv[]) {
     if (argc != 3) {
-       
-        printf("The execution was written incorrectly.\nArguments: <compressed_filename> <uncompressed_filename>\n");
+
         return 1;
 
     }
@@ -40,11 +39,11 @@ int main(int argc, char *argv[]) {
     FILE *output_file = fopen(argv[2], "wb");
 
     if (!input_file) {
-        perror("There was an error when opening the INPUT file. Please try Again"); 
+        perror("There was an error when opening the INPUT file. Please try Again");
         return 1;
         }
-    if (!output_file) { 
-        perror("There was an error when opening the OUTPUT file. Please try Again"); 
+    if (!output_file) {
+        perror("There was an error when opening the OUTPUT file. Please try Again");
         return 1;
         }
 
@@ -52,7 +51,7 @@ int main(int argc, char *argv[]) {
 
     fclose(input_file);
     fclose(output_file);
-    
+
     return 0;
 }
 
@@ -86,14 +85,14 @@ void startDictionary(DictionaryEntry *in_dict) {
 void appendtoDictionary(DictionaryEntry *dict, unsigned char *entry, int length, int *dict_size) {
 
     if (*dict_size < MAX_DICTIONARY_SIZE) {
-        
+
         dict[*dict_size].ent = (unsigned char *)malloc(length);
         memcpy(dict[*dict_size].ent, entry, length);
         dict[*dict_size].length = length;
         (*dict_size)++;
     }
 
-} 
+}
 
 
 /**
@@ -107,7 +106,6 @@ void freeDictionary(DictionaryEntry *dict, int dict_size) {
     for (int i = 256; i < dict_size; i++) {
 
         free(dict[i].ent);
-        printf("\n------------\nFREEING INDEX %i\n", i);
     }
 
 }
@@ -119,25 +117,24 @@ void freeDictionary(DictionaryEntry *dict, int dict_size) {
  * @param input: The file to be read
  */
 int readCode(FILE *input) {
-
     static int buffer = 0;
     static int bitsinbuff = 0;
     int code;
 
-    while (bitsinbuff < 12)
-    {
+    while (bitsinbuff < 12) {
         int next_byte = fgetc(input);
         if (next_byte == EOF) return EOF;
-        buffer = (buffer << 8) | next_byte;
+
+        buffer = buffer * 256 + next_byte;
         bitsinbuff += 8;
     }
 
+    code = buffer / (1 << (bitsinbuff - 12));
+
+    buffer = buffer % (1 << (bitsinbuff - 12));
     bitsinbuff -= 12;
-    code = (buffer >> bitsinbuff) & 0xFFF;
 
     return code;
-    
-
 }
 
 /**
@@ -151,38 +148,38 @@ void decompress(FILE *input, FILE *output) {
     DictionaryEntry dictionary[MAX_DICTIONARY_SIZE];
     startDictionary(dictionary);
     int dict_size = 256;
-    
+
     int newcode, oldcode = readCode(input);
     if (oldcode == EOF) return;
     fwrite(dictionary[oldcode].ent, 1, dictionary[oldcode].length, output);
 
     unsigned char currententry[MAX_ENTRY_SIZE];
-    
+
     memcpy(currententry, dictionary[oldcode].ent, dictionary[oldcode].length);
     int currentlength = dictionary[oldcode].length;
 
     while ((newcode = readCode(input)) != EOF) {
-        printf("dict_size: %i\n", dict_size);
+
         if (dict_size == MAX_DICTIONARY_SIZE) {
-            
+
             freeDictionary(dictionary, MAX_DICTIONARY_SIZE);
             dict_size = 256;
 
         }
-        
+
         int entrylength;
         unsigned char entry[MAX_ENTRY_SIZE];
 
         if (newcode < dict_size) {
-           
-            memcpy(entry, dictionary[newcode].ent, dictionary[newcode].length);  
+
+            memcpy(entry, dictionary[newcode].ent, dictionary[newcode].length);
             entrylength = dictionary[newcode].length;
 
-        } 
+        }
         else {
-           
+
             memcpy(entry, currententry, currentlength);
-            entry[currentlength] = currententry[0];  
+            entry[currentlength] = currententry[0];
             entrylength = currentlength + 1;
 
         }
@@ -199,11 +196,9 @@ void decompress(FILE *input, FILE *output) {
         oldcode = newcode;
 
 
-        
+
     }
-    
+
     freeDictionary(dictionary, dict_size);
 
 }
-
-
