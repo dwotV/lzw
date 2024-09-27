@@ -1,133 +1,209 @@
+/*
+PROYECTO LZW 
+
+Gabriel Ponce Peña A01369913
+Dael 
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_DICT_SIZE 4096
-#define MAX_STRING_SIZE 256
+#define MAX_DICTIONARY_SIZE 4096
+#define MAX_ENTRY_SIZE 256
 
-// Estructura del diccionario para manejar cadenas de bytes
-typedef struct {
-    unsigned char *str;
+typedef struct { 
     int length;
+    unsigned char *ent;
 } DictionaryEntry;
 
-// Función para inicializar el diccionario con los primeros 256 códigos (ASCII/bytes)
-void initialize_dictionary(DictionaryEntry *dictionary) {
-    for (int i = 0; i < 256; i++) {
-        dictionary[i].str = (unsigned char *)malloc(1);
-        dictionary[i].str[0] = i;
-        dictionary[i].length = 1;
-    }
-}
+void startDictionary(DictionaryEntry *in_dict);
+void appendtoDictionary(DictionaryEntry *dict, unsigned char *entry, int length, int *dict_size);
+void freeDictionary(DictionaryEntry *dict, int dict_size);
+int readCode(FILE *input); 
+void decompress(FILE *input, FILE *output);
 
-// Función para agregar una nueva entrada al diccionario
-void add_to_dictionary(DictionaryEntry *dictionary, unsigned char *str, int length, int *dict_size) {
-    if (*dict_size < MAX_DICT_SIZE) {
-        dictionary[*dict_size].str = (unsigned char *)malloc(length);
-        memcpy(dictionary[*dict_size].str, str, length);
-        dictionary[*dict_size].length = length;
-        (*dict_size)++;
-    }
-}
 
-// Función para liberar la memoria del diccionario
-void free_dictionary(DictionaryEntry *dictionary, int dict_size) {
-    for (int i = 0; i < dict_size; i++) {
-        free(dictionary[i].str);
-    }
-}
-
-// Función para leer un código de 12 bits desde el archivo de entrada
-int read_code(FILE *input_file) {
-    static int buffer = 0, bits_in_buffer = 0;
-    int code;
-
-    while (bits_in_buffer < 12) {
-        int next_byte = fgetc(input_file);
-        if (next_byte == EOF) return EOF;
-        buffer = (buffer << 8) | next_byte;
-        bits_in_buffer += 8;
-    }
-
-    bits_in_buffer -= 12;
-    code = (buffer >> bits_in_buffer) & 0xFFF;  // Extraer los 12 bits del buffer
-
-    return code;
-}
-
-// Función para descomprimir los datos LZW
-void decompress(FILE *input_file, FILE *output_file) {
-    DictionaryEntry dictionary[MAX_DICT_SIZE];
-    initialize_dictionary(dictionary);
-    int dict_size = 256;
-
-    int old_code = read_code(input_file);
-    if (old_code == EOF) return;
-
-    // Salida inicial del primer código
-    fwrite(dictionary[old_code].str, 1, dictionary[old_code].length, output_file);
-
-    unsigned char current_string[MAX_STRING_SIZE];
-    memcpy(current_string, dictionary[old_code].str, dictionary[old_code].length);
-    int current_length = dictionary[old_code].length;
-
-    int new_code;
-    while ((new_code = read_code(input_file)) != EOF) {
-        unsigned char entry[MAX_STRING_SIZE];
-        int entry_length;
-
-        if (new_code < dict_size) {
-            // Si el código está en el diccionario
-            memcpy(entry, dictionary[new_code].str, dictionary[new_code].length);
-            entry_length = dictionary[new_code].length;
-        } else {
-            // Caso especial: si el código no está en el diccionario
-            memcpy(entry, current_string, current_length);
-            entry[current_length] = current_string[0];  // Agregar el primer carácter del string actual
-            entry_length = current_length + 1;
-        }
-
-        // Escribir la cadena correspondiente al código en el archivo de salida
-        fwrite(entry, 1, entry_length, output_file);
-
-        // Agregar nueva entrada al diccionario: old_code + primer carácter de entry
-        unsigned char new_entry[MAX_STRING_SIZE];
-        memcpy(new_entry, current_string, current_length);
-        new_entry[current_length] = entry[0];  // Primer carácter de la nueva cadena
-        add_to_dictionary(dictionary, new_entry, current_length + 1, &dict_size);
-
-        // Actualizar current_string y old_code
-        memcpy(current_string, entry, entry_length);
-        current_length = entry_length;
-        old_code = new_code;
-    }
-
-    free_dictionary(dictionary, dict_size);
-}
-
+/**
+ * MAIN FUNCTION
+ * ALL THE CODE IS RUN HERE
+ */
 int main(int argc, char *argv[]) {
     if (argc != 3) {
-        fprintf(stderr, "Uso: %s <archivo_entrada> <archivo_salida>\n", argv[0]);
+       
+        printf("The execution was written incorrectly.\nArguments: <compressed_filename> <uncompressed_filename>\n");
         return 1;
+
     }
 
     FILE *input_file = fopen(argv[1], "rb");
-    if (!input_file) {
-        perror("Error al abrir el archivo de entrada");
-        return 1;
-    }
-
     FILE *output_file = fopen(argv[2], "wb");
-    if (!output_file) {
-        perror("Error al abrir el archivo de salida");
-        fclose(input_file);
+
+    if (!input_file) {
+        perror("There was an error when opening the INPUT file. Please try Again"); 
         return 1;
-    }
+        }
+    if (!output_file) { 
+        perror("There was an error when opening the OUTPUT file. Please try Again"); 
+        return 1;
+        }
 
     decompress(input_file, output_file);
 
     fclose(input_file);
     fclose(output_file);
-
+    
     return 0;
 }
+
+
+/**
+ * startDictionary
+ * Instantiates the struct we have stablished in order to be used
+ *  @param in_dict: Pointer to the dictionary struct
+ */
+void startDictionary(DictionaryEntry *in_dict) {
+
+    for (int i = 0; i < 256; i++) {
+
+        in_dict[i].ent = (unsigned char *)malloc(1);
+        in_dict[i].ent[0] = i;
+        in_dict[i].length = 1;
+
+    }
+
+}
+
+
+/**
+ * appendtoDictionary
+ * Adds an entry to an established dictionary
+ *  @param in_dict: Pointer to the dictionary struct
+ *  @param entry: The entry to be appended
+ *  @param length:
+ *  @param dict_size: Points to the index where the entry will be appended
+ */
+void appendtoDictionary(DictionaryEntry *dict, unsigned char *entry, int length, int *dict_size) {
+
+    if (*dict_size < MAX_DICTIONARY_SIZE) {
+        
+        dict[*dict_size].ent = (unsigned char *)malloc(length);
+        memcpy(dict[*dict_size].ent, entry, length);
+        dict[*dict_size].length = length;
+        (*dict_size)++;
+    }
+
+} 
+
+
+/**
+ * freeDictionary
+ * Frees the Dictionary memery up to a certain index
+ *  @param dict: Pointer to the dictionary struct
+ *  @param dict_size: Points up to which point the dictionary will be freed
+ */
+void freeDictionary(DictionaryEntry *dict, int dict_size) {
+
+    for (int i = 256; i < dict_size; i++) {
+
+        free(dict[i].ent);
+        printf("\n------------\nFREEING INDEX %i\n", i);
+    }
+
+}
+
+
+/**
+ * readCode
+ * Uses a buffer to read a 12 bit code
+ * @param input: The file to be read
+ */
+int readCode(FILE *input) {
+
+    static int buffer = 0;
+    static int bitsinbuff = 0;
+    int code;
+
+    while (bitsinbuff < 12)
+    {
+        int next_byte = fgetc(input);
+        if (next_byte == EOF) return EOF;
+        buffer = (buffer << 8) | next_byte;
+        bitsinbuff += 8;
+    }
+
+    bitsinbuff -= 12;
+    code = (buffer >> bitsinbuff) & 0xFFF;
+
+    return code;
+    
+
+}
+
+/**
+ * decompress
+ * Decompressed the file by using all the other functions and by applying the LZW algorthm
+ * @param input: The input file to be read
+ * @param output: The final file where the decompression is going to be saved
+ */
+void decompress(FILE *input, FILE *output) {
+
+    DictionaryEntry dictionary[MAX_DICTIONARY_SIZE];
+    startDictionary(dictionary);
+    int dict_size = 256;
+    
+    int newcode, oldcode = readCode(input);
+    if (oldcode == EOF) return;
+    fwrite(dictionary[oldcode].ent, 1, dictionary[oldcode].length, output);
+
+    unsigned char currententry[MAX_ENTRY_SIZE];
+    
+    memcpy(currententry, dictionary[oldcode].ent, dictionary[oldcode].length);
+    int currentlength = dictionary[oldcode].length;
+
+    while ((newcode = readCode(input)) != EOF) {
+        printf("dict_size: %i\n", dict_size);
+        if (dict_size == MAX_DICTIONARY_SIZE) {
+            
+            freeDictionary(dictionary, MAX_DICTIONARY_SIZE);
+            dict_size = 256;
+
+        }
+        
+        int entrylength;
+        unsigned char entry[MAX_ENTRY_SIZE];
+
+        if (newcode < dict_size) {
+           
+            memcpy(entry, dictionary[newcode].ent, dictionary[newcode].length);  
+            entrylength = dictionary[newcode].length;
+
+        } 
+        else {
+           
+            memcpy(entry, currententry, currentlength);
+            entry[currentlength] = currententry[0];  
+            entrylength = currentlength + 1;
+
+        }
+
+        fwrite(entry, 1, entrylength, output);
+
+        unsigned char new_entry[MAX_ENTRY_SIZE];
+        memcpy(new_entry, currententry, currentlength);
+        new_entry[currentlength] = entry[0];  // Primer carácter de la nueva cadena
+        appendtoDictionary(dictionary, new_entry, currentlength + 1, &dict_size);
+
+        memcpy(currententry, entry, entrylength);
+        currentlength = entrylength;
+        oldcode = newcode;
+
+
+        
+    }
+    
+    freeDictionary(dictionary, dict_size);
+
+}
+
+
